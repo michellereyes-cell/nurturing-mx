@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { FileUpload } from "@/components/FileUpload";
 import { Filters } from "@/components/Filters";
 import { Charts } from "@/components/Charts";
+import { TableauTables } from "@/components/TableauTables";
 import {
   parseTrialsCSV,
   parseNewPaymentsCSV,
@@ -27,13 +28,14 @@ function DashboardContent() {
     else setHubspotText(text);
   };
 
+  const trialsData = useMemo(() => (trialsText ? parseTrialsCSV(trialsText) : []), [trialsText]);
+  const npData = useMemo(() => (npText ? parseNewPaymentsCSV(npText) : []), [npText]);
+
   const merged = useMemo(() => {
     if (!trialsText && !npText && !hubspotText) return [];
-    const trials = trialsText ? parseTrialsCSV(trialsText) : [];
-    const np = npText ? parseNewPaymentsCSV(npText) : [];
     const hubspot = hubspotText ? parseHubSpotCSV(hubspotText) : [];
-    return mergeData(trials, np, hubspot);
-  }, [trialsText, npText, hubspotText]);
+    return mergeData(trialsData, npData, hubspot);
+  }, [trialsText, npText, hubspotText, trialsData, npData]);
 
   const canalParam = (searchParams.get("canal") ?? "") as CanalNormalizado | "";
   const etapaParam = (searchParams.get("etapa") ?? "") as EtapaFunnel | "";
@@ -81,6 +83,10 @@ function DashboardContent() {
           onLoad={handleLoad}
         />
       </section>
+
+      {(trialsData.length > 0 || npData.length > 0) && (
+        <TableauTables trialsData={trialsData} newPaymentsData={npData} />
+      )}
 
       {merged.length > 0 && (
         <>
