@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --nimbus-primary: #0059d5;
+  --nimbus-primary-hover: #00429f;
+  --nimbus-primary-pressed: #00347d;
+  --nimbus-surface: #eef5ff;
+  --nimbus-text-high: #000b19;
+  --nimbus-success: #00a650;
+  --nimbus-warning: #ffc107;
+  --nimbus-danger: #e74c3c;
+}
+
+body {
+  color: var(--nimbus-text-high);
+  background: #f5f5f5;
+}
