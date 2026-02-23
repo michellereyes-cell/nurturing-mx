@@ -170,7 +170,7 @@ function DashboardContent() {
 
           {activeTab === "fullfunnel" && (
             <div className="pt-4">
-              <FullFunnelDashboard data={filtered} />
+              <FullFunnelDashboard data={filtered} hubspotRows={hubspotData} />
             </div>
           )}
         </>

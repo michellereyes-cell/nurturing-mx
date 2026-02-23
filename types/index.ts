@@ -22,6 +22,8 @@ export interface FilaTableau {
 export interface FilaHubSpot {
   utm_campaign: string;
   utm_content: string;
+  /** Nombre completo del correo (ej. columna "Nombre del correo" en HubSpot) */
+  nombre_correo?: string;
   sends: number;
   opens: number;
   clicks: number;
@@ -37,6 +39,8 @@ export interface FilaUnificada {
   utm_campaign: string;
   canal: CanalNormalizado;
   etapa?: EtapaFunnel;
+  /** Nombre completo del correo cuando viene de HubSpot */
+  nombre_correo?: string;
   trials: number;
   new_payments: number;
   sends: number;
