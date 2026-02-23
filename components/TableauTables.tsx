@@ -4,6 +4,7 @@ import type { FilaTableau, CanalNormalizado } from "@/types";
 import { normalizarCanal } from "@/lib/icp";
 import { CANAL_LABELS } from "@/lib/icp";
 import { campaignToFlujoGroup } from "@/lib/flujoGroups";
+import { PieChart, Pie, Tooltip, ResponsiveContainer, Cell, Legend } from "recharts";
 
 const CANALES_ORDER: CanalNormalizado[] = [
   "tienda-online",
@@ -54,6 +55,56 @@ function buildMatrix(rows: FilaTableau[]): { flujoColumns: string[]; matrix: Map
   return { flujoColumns, matrix };
 }
 
+/** Totales por canal y % sobre el total, para gráficos. */
+function datosPorCanal(
+  matrix: Map<string, Map<string, number>>,
+  flujoColumns: string[],
+  grandTotal: number
+): { canal: string; label: string; value: number; pct: number }[] {
+  return CANALES_ORDER.map((canal) => {
+    const rowMap = matrix.get(canal)!;
+    const value = flujoColumns.reduce((sum, f) => sum + (rowMap.get(f) ?? 0), 0);
+    const pct = grandTotal > 0 ? (100 * value) / grandTotal : 0;
+    return {
+      canal,
+      label: CANAL_LABELS[canal],
+      value,
+      pct,
+    };
+  });
+}
+
+/** Canales que se agrupan en "Venden" (marketplace, tienda física, redes, tienda online, venden general). */
+const CANALES_VENDEN: CanalNormalizado[] = [
+  "tienda-online",
+  "redes-sociales",
+  "marketplace",
+  "tienda-fisica",
+  "venden",
+];
+
+/** Agrupa datos por canal en 3 segmentos: No vende, No sabemos, Venden. */
+function datosTresSegmentos(
+  porCanal: { canal: string; label: string; value: number; pct: number }[],
+  grandTotal: number
+): { label: string; value: number; pct: number }[] {
+  let noVende = 0;
+  let noSabemos = 0;
+  let venden = 0;
+  for (const row of porCanal) {
+    if (row.canal === "no-vendo") noVende += row.value;
+    else if (row.canal === "no-sabemos") noSabemos += row.value;
+    else if (CANALES_VENDEN.includes(row.canal as CanalNormalizado)) venden += row.value;
+  }
+  return [
+    { label: "No vende", value: noVende, pct: grandTotal > 0 ? (100 * noVende) / grandTotal : 0 },
+    { label: "No sabemos", value: noSabemos, pct: grandTotal > 0 ? (100 * noSabemos) / grandTotal : 0 },
+    { label: "Venden", value: venden, pct: grandTotal > 0 ? (100 * venden) / grandTotal : 0 },
+  ];
+}
+
+const CHART_COLORS_3 = ["#00a650", "#6c757d", "#0059d5"];
+
 export function TableauTables({ trialsData, newPaymentsData }: TableauTablesProps) {
   const hasTrials = trialsData.length > 0;
   const hasNP = newPaymentsData.length > 0;
@@ -89,6 +140,11 @@ export function TableauTables({ trialsData, newPaymentsData }: TableauTablesProp
       CANALES_ORDER.reduce((sum, canal) => sum + (npMatrix.get(canal)!.get(flujo) ?? 0), 0)
     );
   });
+
+  const trialsPorCanal = datosPorCanal(trialsMatrix, trialsFlujos, trialsGrandTotal);
+  const npPorCanal = datosPorCanal(npMatrix, npFlujos, npGrandTotal);
+  const trialsTresSegmentos = datosTresSegmentos(trialsPorCanal, trialsGrandTotal);
+  const npTresSegmentos = datosTresSegmentos(npPorCanal, npGrandTotal);
 
   return (
     <div className="space-y-8">
@@ -269,6 +325,84 @@ export function TableauTables({ trialsData, newPaymentsData }: TableauTablesProp
               </tfoot>
             </table>
           </div>
+        </section>
+      )}
+
+      {(hasTrials || hasNP) && (
+        <section className="space-y-8">
+          <h2 className="text-lg font-semibold text-nimbus-text-high">
+            Gráficos por canal (% — suma 100%)
+          </h2>
+
+          {hasTrials && (
+            <div>
+              <h3 className="text-base font-medium text-nimbus-text-high mb-3">
+                Trials por canal (3 segmentos)
+              </h3>
+              <div className="h-96 max-w-lg mx-auto bg-white rounded-lg border border-gray-200 p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={trialsTresSegmentos}
+                      dataKey="value"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius="70%"
+                      label={({ label, pct }) => (pct > 0 ? `${label}: ${pct.toFixed(1)}%` : "")}
+                      labelLine={true}
+                    >
+                      {trialsTresSegmentos.map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS_3[i]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number, _name: string, props: { payload: { label: string; value: number; pct: number } }) => [
+                        `${formatVal(props.payload.value)} (${props.payload.pct.toFixed(1)}%)`,
+                        "Trials",
+                      ]}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {hasNP && (
+            <div>
+              <h3 className="text-base font-medium text-nimbus-text-high mb-3">
+                New Payments por canal (3 segmentos)
+              </h3>
+              <div className="h-96 max-w-lg mx-auto bg-white rounded-lg border border-gray-200 p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={npTresSegmentos}
+                      dataKey="value"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius="70%"
+                      label={({ label, pct }) => (pct > 0 ? `${label}: ${pct.toFixed(1)}%` : "")}
+                      labelLine={true}
+                    >
+                      {npTresSegmentos.map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS_3[i]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number, _name: string, props: { payload: { label: string; value: number; pct: number } }) => [
+                        `${formatVal(props.payload.value)} (${props.payload.pct.toFixed(1)}%)`,
+                        "New Payments",
+                      ]}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

@@ -55,6 +55,7 @@ export function mergeData(
           etapa,
           trials: 0,
           new_payments: 0,
+          sends: 0,
           opens: 0,
           clicks: 0,
           ctr: 0,
@@ -80,6 +81,7 @@ export function mergeData(
           etapa,
           trials: 0,
           new_payments: 0,
+          sends: 0,
           opens: 0,
           clicks: 0,
           ctr: 0,
@@ -87,10 +89,14 @@ export function mergeData(
         };
         map.set(k, row);
       }
+      row.sends += r.sends;
       row.opens += r.opens;
       row.clicks += r.clicks;
       row.ctr += r.ctr;
       row.spam += r.spam;
+      if (r.delivered !== undefined) row.delivered = (row.delivered ?? 0) + r.delivered;
+      if (r.unsubscribed !== undefined) row.unsubscribed = (row.unsubscribed ?? 0) + r.unsubscribed;
+      if (r.omitted !== undefined) row.omitted = (row.omitted ?? 0) + r.omitted;
     }
   }
 
