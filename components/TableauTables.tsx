@@ -357,10 +357,11 @@ export function TableauTables({ trialsData, newPaymentsData }: TableauTablesProp
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number, _name: string, props: { payload: { label: string; value: number; pct: number } }) => [
-                        `${formatVal(props.payload.value)} (${props.payload.pct.toFixed(1)}%)`,
-                        "Trials",
-                      ]}
+                      formatter={(value: number, _name: string, item: { payload?: { label: string; value: number; pct: number } }) => {
+                        const p = item?.payload;
+                        if (!p) return [formatVal(value), "Trials"];
+                        return [`${formatVal(p.value)} (${p.pct.toFixed(1)}%)`, "Trials"];
+                      }}
                     />
                     <Legend />
                   </PieChart>
@@ -392,10 +393,11 @@ export function TableauTables({ trialsData, newPaymentsData }: TableauTablesProp
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number, _name: string, props: { payload: { label: string; value: number; pct: number } }) => [
-                        `${formatVal(props.payload.value)} (${props.payload.pct.toFixed(1)}%)`,
-                        "New Payments",
-                      ]}
+                      formatter={(value: number, _name: string, item: { payload?: { label: string; value: number; pct: number } }) => {
+                        const p = item?.payload;
+                        if (!p) return [formatVal(value), "New Payments"];
+                        return [`${formatVal(p.value)} (${p.pct.toFixed(1)}%)`, "New Payments"];
+                      }}
                     />
                     <Legend />
                   </PieChart>

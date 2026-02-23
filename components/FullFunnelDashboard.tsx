@@ -210,10 +210,14 @@ export function FullFunnelDashboard({ data }: FullFunnelDashboardProps) {
             <ResponsiveContainer width="100%" height="100%">
               <FunnelChart>
                 <Tooltip
-                  formatter={(value: number, _name: string, props: { payload: { name: string; realValue: number; pct: number } }) => [
-                    `${props.payload.realValue.toLocaleString("es-MX")} (${props.payload.pct.toFixed(1)}%)`,
-                    props.payload.name,
-                  ]}
+                  formatter={(value: number, _name: string, item: { payload?: { name: string; realValue: number; pct: number } }) => {
+                    const p = item?.payload;
+                    if (!p) return [String(value), _name];
+                    return [
+                      `${p.realValue.toLocaleString("es-MX")} (${p.pct.toFixed(1)}%)`,
+                      p.name,
+                    ];
+                  }}
                   labelFormatter={() => null}
                 />
                 <Funnel
