@@ -1,7 +1,8 @@
 import type { FilaTableau, FilaHubSpot, FilaUnificada, CanalNormalizado, EtapaFunnel } from "@/types";
 import { normalizarCanal } from "./icp";
 
-function extractEtapa(utmContent: string): EtapaFunnel | undefined {
+/** Extrae etapa del funnel desde utm_content (tofu, mofu, bofu). Exportado para uso en dashboards. */
+export function extractEtapa(utmContent: string): EtapaFunnel | undefined {
   const lower = (utmContent ?? "").toLowerCase();
   if (lower.includes("tofu")) return "tofu";
   if (lower.includes("mofu")) return "mofu";
@@ -79,6 +80,7 @@ export function mergeData(
           utm_campaign: r.utm_campaign,
           canal,
           etapa,
+          ...(r.nombre_correo && { nombre_correo: r.nombre_correo }),
           trials: 0,
           new_payments: 0,
           sends: 0,
@@ -89,6 +91,7 @@ export function mergeData(
         };
         map.set(k, row);
       }
+      if (r.nombre_correo && !row.nombre_correo) row.nombre_correo = r.nombre_correo;
       row.sends += r.sends;
       row.opens += r.opens;
       row.clicks += r.clicks;

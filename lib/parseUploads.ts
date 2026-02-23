@@ -108,6 +108,7 @@ export function parseHubSpotCSV(csvText: string): FilaHubSpot[] {
     }
     if (!utm_campaign && !utm_content) continue;
 
+    const nombreCorreo = nombreCol && row[nombreCol] ? String(row[nombreCol]).trim() : undefined;
     const sendsCol = findColumn(row, SENDS_ALIASES);
     const opensCol = findColumn(row, OPENS_ALIASES);
     const clicksCol = findColumn(row, CLICKS_ALIASES);
@@ -129,6 +130,7 @@ export function parseHubSpotCSV(csvText: string): FilaHubSpot[] {
     result.push({
       utm_campaign,
       utm_content,
+      ...(nombreCorreo && { nombre_correo: nombreCorreo }),
       sends,
       opens,
       clicks,
