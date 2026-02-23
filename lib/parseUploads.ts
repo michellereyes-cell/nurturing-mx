@@ -31,10 +31,14 @@ const NP_ALIASES = [
 ];
 const CAMPAIGN_ALIASES = ["utm_campaign", "utm campaign", "campaign"];
 const CONTENT_ALIASES = ["utm_content", "utm content", "content"];
-const OPENS_ALIASES = ["opens", "open", "opened", "Abierto"];
-const CLICKS_ALIASES = ["clicks", "click", "Con clic"];
+const SENDS_ALIASES = ["ENVIADOS", "enviados", "sends", "sent", "Sent"];
+const OPENS_ALIASES = ["ABIERTOS", "Abiertos", "opens", "open", "opened", "Abierto"];
+const CLICKS_ALIASES = ["CLICK", "Clicks", "clicks", "click", "Con clic"];
 const CTR_ALIASES = ["ctr", "click rate", "Tasa de clics", "Tasa de clickthrough"];
 const SPAM_ALIASES = ["spam", "spam reports", "Informes de spam"];
+const DELIVERED_ALIASES = ["ENTREGADOS", "entregados", "delivered"];
+const UNSUBSCRIBED_ALIASES = ["SUSCRIPCION CANCELADA", "Suscripcion cancelada", "unsubscribed"];
+const OMITTED_ALIASES = ["OMITIDOS", "omitidos", "omitted", "skipped"];
 const HUBSPOT_NOMBRE_CORREO = ["Nombre del correo", "Nombre del correo electrónico", "Email name"];
 
 /** Parsea CSV de Tableau (trials o new payments): tab, cabeceras normalizables, campaign/content. */
@@ -104,17 +108,36 @@ export function parseHubSpotCSV(csvText: string): FilaHubSpot[] {
     }
     if (!utm_campaign && !utm_content) continue;
 
+    const sendsCol = findColumn(row, SENDS_ALIASES);
     const opensCol = findColumn(row, OPENS_ALIASES);
     const clicksCol = findColumn(row, CLICKS_ALIASES);
     const ctrCol = findColumn(row, CTR_ALIASES);
     const spamCol = findColumn(row, SPAM_ALIASES);
+    const deliveredCol = findColumn(row, DELIVERED_ALIASES);
+    const unsubscribedCol = findColumn(row, UNSUBSCRIBED_ALIASES);
+    const omittedCol = findColumn(row, OMITTED_ALIASES);
 
+    const sends = sendsCol ? toNumber(row[sendsCol]) : 0;
     const opens = opensCol ? toNumber(row[opensCol]) : 0;
     const clicks = clicksCol ? toNumber(row[clicksCol]) : 0;
     const ctr = ctrCol ? toNumber(row[ctrCol]) : 0;
     const spam = spamCol ? toNumber(row[spamCol]) : 0;
+    const delivered = deliveredCol ? toNumber(row[deliveredCol]) : undefined;
+    const unsubscribed = unsubscribedCol ? toNumber(row[unsubscribedCol]) : undefined;
+    const omitted = omittedCol ? toNumber(row[omittedCol]) : undefined;
 
-    result.push({ utm_campaign, utm_content, opens, clicks, ctr, spam });
+    result.push({
+      utm_campaign,
+      utm_content,
+      sends,
+      opens,
+      clicks,
+      ctr,
+      spam,
+      ...(delivered !== undefined && { delivered }),
+      ...(unsubscribed !== undefined && { unsubscribed }),
+      ...(omitted !== undefined && { omitted }),
+    });
   }
   return result;
 }

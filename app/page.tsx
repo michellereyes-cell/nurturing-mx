@@ -4,7 +4,9 @@ import { useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { FileUpload } from "@/components/FileUpload";
 import { Filters } from "@/components/Filters";
+import { TableauTables } from "@/components/TableauTables";
 import { Charts } from "@/components/Charts";
+import { FullFunnelDashboard } from "@/components/FullFunnelDashboard";
 import {
   parseTrialsCSV,
   parseNewPaymentsCSV,
@@ -14,12 +16,14 @@ import { mergeData } from "@/lib/merge";
 import type { FilaUnificada, CanalNormalizado, EtapaFunnel } from "@/types";
 
 type UploadSlot = "trials" | "newPayments" | "hubspot";
+type TabId = "tablas" | "fullfunnel";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
   const [trialsText, setTrialsText] = useState("");
   const [npText, setNpText] = useState("");
   const [hubspotText, setHubspotText] = useState("");
+  const [activeTab, setActiveTab] = useState<TabId>("tablas");
 
   const handleLoad = (slot: UploadSlot, text: string) => {
     if (slot === "trials") setTrialsText(text);
@@ -27,13 +31,14 @@ function DashboardContent() {
     else setHubspotText(text);
   };
 
-  const merged = useMemo(() => {
-    if (!trialsText && !npText && !hubspotText) return [];
-    const trials = trialsText ? parseTrialsCSV(trialsText) : [];
-    const np = npText ? parseNewPaymentsCSV(npText) : [];
-    const hubspot = hubspotText ? parseHubSpotCSV(hubspotText) : [];
-    return mergeData(trials, np, hubspot);
-  }, [trialsText, npText, hubspotText]);
+  const trialsData = useMemo(() => (trialsText ? parseTrialsCSV(trialsText) : []), [trialsText]);
+  const npData = useMemo(() => (npText ? parseNewPaymentsCSV(npText) : []), [npText]);
+  const hubspotData = useMemo(() => (hubspotText ? parseHubSpotCSV(hubspotText) : []), [hubspotText]);
+
+  const merged = useMemo(
+    () => mergeData(trialsData, npData, hubspotData),
+    [trialsData, npData, hubspotData]
+  );
 
   const canalParam = (searchParams.get("canal") ?? "") as CanalNormalizado | "";
   const etapaParam = (searchParams.get("etapa") ?? "") as EtapaFunnel | "";
@@ -62,6 +67,8 @@ function DashboardContent() {
     );
   }, [filtered]);
 
+  const hasData = trialsData.length > 0 || npData.length > 0 || hubspotData.length > 0;
+
   return (
     <div className="space-y-8">
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -76,13 +83,19 @@ function DashboardContent() {
           onLoad={handleLoad}
         />
         <FileUpload
-          label="CSV HubSpot (opens, clicks, CTR, spam)"
+          label="CSV HubSpot (Nombre del correo, ENVIADOS, ABIERTOS, CLICK, etc.)"
           slot="hubspot"
           onLoad={handleLoad}
         />
       </section>
 
-      {merged.length > 0 && (
+      {hubspotData.length > 0 && (
+        <p className="text-sm text-gray-600">
+          HubSpot cargado: <strong>{hubspotData.length}</strong> filas (envíos, aperturas, clics por correo).
+        </p>
+      )}
+
+      {hasData && (
         <>
           <Filters />
           <section className="bg-nimbus-surface rounded-lg border border-gray-200 p-4">
@@ -118,7 +131,48 @@ function DashboardContent() {
               </div>
             </div>
           </section>
-          <Charts data={filtered} />
+
+          <nav className="border-b border-gray-200" aria-label="Pestañas">
+            <div className="flex gap-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab("tablas")}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === "tablas"
+                    ? "border-nimbus-primary text-nimbus-primary"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Tablas y gráficos
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("fullfunnel")}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === "fullfunnel"
+                    ? "border-nimbus-primary text-nimbus-primary"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Full funnel
+              </button>
+            </div>
+          </nav>
+
+          {activeTab === "tablas" && (
+            <div className="pt-4 space-y-8">
+              {(trialsData.length > 0 || npData.length > 0) && (
+                <TableauTables trialsData={trialsData} newPaymentsData={npData} />
+              )}
+              <Charts data={filtered} />
+            </div>
+          )}
+
+          {activeTab === "fullfunnel" && (
+            <div className="pt-4">
+              <FullFunnelDashboard data={filtered} />
+            </div>
+          )}
         </>
       )}
     </div>

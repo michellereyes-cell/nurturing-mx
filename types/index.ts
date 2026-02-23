@@ -22,10 +22,14 @@ export interface FilaTableau {
 export interface FilaHubSpot {
   utm_campaign: string;
   utm_content: string;
+  sends: number;
   opens: number;
   clicks: number;
   ctr: number;
   spam: number;
+  delivered?: number;
+  unsubscribed?: number;
+  omitted?: number;
 }
 
 /** Fila unificada por (campaign, canal) para el dashboard */
@@ -35,10 +39,14 @@ export interface FilaUnificada {
   etapa?: EtapaFunnel;
   trials: number;
   new_payments: number;
+  sends: number;
   opens: number;
   clicks: number;
   ctr: number;
   spam: number;
+  delivered?: number;
+  unsubscribed?: number;
+  omitted?: number;
 }
 
 /** Parámetros de filtro en URL */
