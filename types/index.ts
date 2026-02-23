@@ -22,16 +22,13 @@ export interface FilaTableau {
 export interface FilaHubSpot {
   utm_campaign: string;
   utm_content: string;
-  sends: number;   // ENVIADOS
-  opens: number;   // ABIERTOS
-  clicks: number; // CLICK
+  sends: number;
+  opens: number;
+  clicks: number;
   ctr: number;
   spam: number;
-  /** ENTREGADOS (opcional) */
   delivered?: number;
-  /** SUSCRIPCION CANCELADA (opcional) */
   unsubscribed?: number;
-  /** OMITIDOS (opcional) */
   omitted?: number;
 }
 
@@ -42,7 +39,7 @@ export interface FilaUnificada {
   etapa?: EtapaFunnel;
   trials: number;
   new_payments: number;
-  sends: number;   // ENVIADOS (HubSpot)
+  sends: number;
   opens: number;
   clicks: number;
   ctr: number;

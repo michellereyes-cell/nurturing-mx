@@ -49,5 +49,5 @@ export const CANAL_LABELS: Record<CanalNormalizado, string> = {
   "tienda-fisica": "Tienda física",
   "no-vendo": "No vendo",
   "no-sabemos": "No sabemos",
-  venden: "Venden general",
+  venden: "Venden (no segmentado)",
 };
