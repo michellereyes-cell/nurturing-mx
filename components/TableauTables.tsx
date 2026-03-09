@@ -2,9 +2,12 @@
 
 import type { FilaTableau, CanalNormalizado } from "@/types";
 import { normalizarCanal } from "@/lib/icp";
+import type { CustomCanalMap } from "@/lib/icp";
 import { CANAL_LABELS } from "@/lib/icp";
 import { campaignToFlujoGroup } from "@/lib/flujoGroups";
+import type { CustomOrigenMap, OrigenLabel } from "@/lib/flujoGroups";
 import { PieChart, Pie, Tooltip, ResponsiveContainer, Cell, Legend } from "recharts";
+import { UnknownWordsBox } from "@/components/UnknownWordsBox";
 
 const CANALES_ORDER: CanalNormalizado[] = [
   "tienda-online",
@@ -30,10 +33,21 @@ function formatPct(num: number, den: number): string {
 interface TableauTablesProps {
   trialsData: FilaTableau[];
   newPaymentsData: FilaTableau[];
+  customCanal?: CustomCanalMap;
+  customOrigen?: CustomOrigenMap;
+  onAddCanal?: (palabra: string, canal: CanalNormalizado) => void;
+  onAddOrigen?: (palabra: string, origen: OrigenLabel) => void;
+}
+
+function combinedForCanal(content: string, campaign: string): string {
+  return [(content || "").trim(), (campaign || "").trim()].filter(Boolean).join(" ");
 }
 
 /** Construye matriz: filas = canales ICP, columnas = flujos (utm_campaign agrupado), valores = suma de valor. */
-function buildMatrix(rows: FilaTableau[]): { flujoColumns: string[]; matrix: Map<string, Map<string, number>> } {
+function buildMatrix(
+  rows: FilaTableau[],
+  options?: { customCanal?: CustomCanalMap; customOrigen?: CustomOrigenMap }
+): { flujoColumns: string[]; matrix: Map<string, Map<string, number>> } {
   const flujoSet = new Set<string>();
   const matrix = new Map<string, Map<string, number>>();
 
@@ -42,8 +56,12 @@ function buildMatrix(rows: FilaTableau[]): { flujoColumns: string[]; matrix: Map
   }
 
   for (const r of rows) {
-    const canal = normalizarCanal(r.utm_content);
-    const flujo = campaignToFlujoGroup(r.utm_campaign || r.utm_content);
+    const canal = normalizarCanal(combinedForCanal(r.utm_content, r.utm_campaign), {
+      customCanal: options?.customCanal,
+    });
+    const flujo = campaignToFlujoGroup(r.utm_campaign || r.utm_content, {
+      customOrigen: options?.customOrigen,
+    });
     flujoSet.add(flujo);
 
     if (!matrix.has(canal)) matrix.set(canal, new Map());
@@ -105,12 +123,20 @@ function datosTresSegmentos(
 
 const CHART_COLORS_3 = ["#00a650", "#6c757d", "#0059d5"];
 
-export function TableauTables({ trialsData, newPaymentsData }: TableauTablesProps) {
+export function TableauTables({
+  trialsData,
+  newPaymentsData,
+  customCanal = {},
+  customOrigen = {},
+  onAddCanal,
+  onAddOrigen,
+}: TableauTablesProps) {
   const hasTrials = trialsData.length > 0;
   const hasNP = newPaymentsData.length > 0;
+  const opts = { customCanal, customOrigen };
 
-  const { flujoColumns: trialsFlujos, matrix: trialsMatrix } = buildMatrix(trialsData);
-  const { flujoColumns: npFlujos, matrix: npMatrix } = buildMatrix(newPaymentsData);
+  const { flujoColumns: trialsFlujos, matrix: trialsMatrix } = buildMatrix(trialsData, opts);
+  const { flujoColumns: npFlujos, matrix: npMatrix } = buildMatrix(newPaymentsData, opts);
 
   const trialsGrandTotal = trialsFlujos.length
     ? CANALES_ORDER.reduce(
@@ -412,6 +438,17 @@ export function TableauTables({ trialsData, newPaymentsData }: TableauTablesProp
         <p className="text-gray-500 text-sm">
           Sube al menos el CSV de Trials o el de New Payments (Tableau) para ver las tablas por canal y flujo.
         </p>
+      )}
+
+      {(hasTrials || hasNP) && onAddCanal && onAddOrigen && (
+        <UnknownWordsBox
+          trialsData={trialsData}
+          newPaymentsData={newPaymentsData}
+          customCanal={customCanal}
+          customOrigen={customOrigen}
+          onAddCanal={onAddCanal}
+          onAddOrigen={onAddOrigen}
+        />
       )}
     </div>
   );

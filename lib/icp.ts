@@ -1,51 +1,152 @@
 import type { CanalNormalizado } from "@/types";
 
+/** Decodifica %XX en UTMs (espacios, acentos). No lanza. */
+function safeDecodeUtm(s: string): string {
+  const t = (s ?? "").trim();
+  if (!t || !t.includes("%")) return t;
+  try {
+    return decodeURIComponent(t);
+  } catch {
+    return t;
+  }
+}
+
+/** Normaliza texto para comparación: decode, minúsculas, espacios colapsados. */
+function normalizeForMatch(s: string): string {
+  const decoded = safeDecodeUtm(s ?? "");
+  return decoded
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 /**
- * Reglas ICP: clasifica utm_content (o string con canales) en uno de 7 canales.
- * Prioridad: ICP1 tienda online > ICP2 redes > ICP3 marketplace > ICP4 tienda física > ICP5 no vendo > ICP6 venden (flujos no segmentados) > ICP7 no sabemos.
- * Variantes reales: online, rrss, mktplace, fisica/físico, venden.
+ * Comprueba si el texto contiene alguna de las palabras clave.
+ * Las keywords se comparan normalizadas (sin espacios extra, case-insensitive).
  */
-const PATRONES: { canal: CanalNormalizado; keywords: string[] }[] = [
-  { canal: "tienda-online", keywords: ["tiendaonline", "tienda-online", "tienda online", "online"] },
-  { canal: "redes-sociales", keywords: ["redes", "redes sociales", "redessociales", "rrss"] },
-  { canal: "marketplace", keywords: ["marketplace", "market place", "mktplace"] },
-  { canal: "tienda-fisica", keywords: ["tiendafisica", "tienda fisica", "tienda física", "fisica", "física", "fisico", "físico"] },
-  { canal: "no-vendo", keywords: ["no vendo", "novendo", "no venden", "nosabemos", "no sabemos", "nosabemos"] },
-  { canal: "venden", keywords: ["venden", "seller", "selller", "consejos-venden", "inactividad-venden", "fidelizacion-venden"] },
-  { canal: "no-sabemos", keywords: ["faltante", "n/a", "na", ""] },
+function matchesKeyword(normalizedText: string, keywords: string[]): boolean {
+  const textNoSpaces = normalizedText.replace(/\s/g, "");
+  return keywords.some((k) => {
+    const kw = normalizeForMatch(k);
+    if (!kw.length) return false;
+    const kwNoSpaces = kw.replace(/\s/g, "");
+    return normalizedText.includes(kw) || textNoSpaces.includes(kwNoSpaces);
+  });
+}
+
+/**
+ * Reglas de canal (orden = prioridad).
+ * Si la UTM tiene varios canales, se asigna el de mayor prioridad (el primero que matchee).
+ * 1. Tienda online 2. Redes sociales 3. Marketplace 4. Tienda física 5. No vendo 6. Venden 7. No sabemos (restantes)
+ */
+const CANAL_RULES: { canal: CanalNormalizado; keywords: string[] }[] = [
+  {
+    canal: "tienda-online",
+    keywords: ["online", "tiendaonline", "loja virtual", "virtual", "lojavirtual"],
+  },
+  {
+    canal: "redes-sociales",
+    keywords: [
+      "rrss",
+      "redes",
+      "some",
+      "socialmedia",
+      "redes-sociales",
+      "redes sociais",
+      "sociais",
+    ],
+  },
+  {
+    canal: "marketplace",
+    keywords: ["marketplace", "mktplace", "isr"],
+  },
+  {
+    canal: "tienda-fisica",
+    keywords: [
+      "loja física",
+      "física",
+      "fisica",
+      "loja fisica",
+      "lojafisica",
+    ],
+  },
+  {
+    canal: "no-vendo",
+    keywords: [
+      "noseller",
+      "novendo",
+      "novenden",
+      "novende",
+      "no vende",
+      "no venden",
+      "não vendo",
+      "nao vendo",
+    ],
+  },
+  {
+    canal: "venden",
+    keywords: [
+      "vende",
+      "venden",
+      "venden gral",
+      "vendengral",
+      "venden gral",
+      "fidelizacion",
+      "fidelización",
+    ],
+  },
+  {
+    canal: "no-sabemos",
+    keywords: ["nosabemos", "gral", "general"],
+  },
 ];
 
-export function normalizarCanal(utmContent: string): CanalNormalizado {
-  const raw = (utmContent ?? "").trim();
-  const lower = raw.toLowerCase();
-  if (!lower) return "no-sabemos";
+export type CustomCanalMap = Record<string, CanalNormalizado>;
 
-  // ICP1: tienda online
-  if (matches(lower, PATRONES[0].keywords)) return "tienda-online";
-  // ICP2: redes
-  if (matches(lower, PATRONES[1].keywords)) return "redes-sociales";
-  // ICP3: marketplace
-  if (matches(lower, PATRONES[2].keywords)) return "marketplace";
-  // ICP4: tienda física
-  if (matches(lower, PATRONES[3].keywords)) return "tienda-fisica";
-  // ICP5: no vendo (explícito)
-  if (matches(lower, ["no vendo", "novendo", "no venden", "nosabemos", "no sabemos"])) return "no-vendo";
-  // ICP6: venden (flujos no segmentados; no debe matchear "no vendo")
-  if (matches(lower, ["venden", "consejos-venden", "inactividad-venden", "fidelizacion-venden", "seller", "selller"])) return "venden";
-  if (matches(lower, PATRONES[5].keywords)) return "no-sabemos";
+/**
+ * Clasifica un texto (p. ej. utm_content + " " + utm_campaign) en uno de los canales.
+ * Acepta mapeo custom: si la clave (normalizada) está en customCanal, se usa ese canal.
+ */
+export function normalizarCanal(
+  text: string,
+  options?: { customCanal?: CustomCanalMap }
+): CanalNormalizado {
+  const raw = safeDecodeUtm((text ?? "").trim());
+  const normalized = normalizeForMatch(raw);
+  if (!normalized) return "no-sabemos";
+
+  const custom = options?.customCanal;
+  if (custom) {
+    const key = Object.keys(custom).find(
+      (k) => normalizeForMatch(k) === normalized || normalized.includes(normalizeForMatch(k))
+    );
+    if (key) return custom[key];
+    const keyNoSpaces = normalized.replace(/\s/g, "");
+    const keyByNoSpaces = Object.keys(custom).find(
+      (k) => (k || "").trim().toLowerCase().replace(/\s/g, "") === keyNoSpaces
+    );
+    if (keyByNoSpaces) return custom[keyByNoSpaces];
+  }
+
+  for (const { canal, keywords } of CANAL_RULES) {
+    if (matchesKeyword(normalized, keywords)) return canal;
+  }
 
   return "no-sabemos";
 }
 
-function matches(text: string, keywords: string[]): boolean {
-  return keywords.some((k) => k && text.includes(k.toLowerCase()));
+/** Indica si el texto (ya normalizado) coincide con alguna keyword conocida de canal (sin custom). */
+export function isKnownCanalKeyword(text: string): boolean {
+  const normalized = normalizeForMatch(text);
+  if (!normalized) return true;
+  return CANAL_RULES.some(({ keywords }) => matchesKeyword(normalized, keywords));
 }
 
 /** Etiquetas para UI */
 export const CANAL_LABELS: Record<CanalNormalizado, string> = {
   "tienda-online": "Tienda online",
   "redes-sociales": "Redes sociales",
-  marketplace: "Marketplace",
+  marketplace: "Marketplaces",
   "tienda-fisica": "Tienda física",
   "no-vendo": "No vendo",
   "no-sabemos": "No sabemos",

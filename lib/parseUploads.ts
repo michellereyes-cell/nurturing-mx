@@ -9,6 +9,24 @@ function collapseUtf16Artifact(s: string): string {
   return t;
 }
 
+/** Decodifica UTMs con %XX (espacios, acentos: %20, %c3%a3, etc.). No lanza. */
+function safeDecodeUtm(s: string): string {
+  const t = (s ?? "").trim();
+  if (!t) return t;
+  try {
+    return decodeURIComponent(t);
+  } catch {
+    return t;
+  }
+}
+
+/** Fila que es el total del CSV (no se debe catalogar ni sumar). */
+function isTotalRow(campaign: string, content: string): boolean {
+  const c = campaign.trim().toLowerCase();
+  const ct = content.trim().toLowerCase();
+  return c === "total" || ct === "total";
+}
+
 const TRIALS_ALIASES = [
   "trials",
   "trial",
@@ -54,9 +72,10 @@ export function parseTableauCSV(
     const contentCol = findColumn(row, CONTENT_ALIASES);
     let utm_campaign = campaignCol ? String(row[campaignCol] ?? "").trim() : "";
     let utm_content = contentCol ? String(row[contentCol] ?? "").trim() : "";
-    utm_campaign = collapseUtf16Artifact(utm_campaign);
-    utm_content = collapseUtf16Artifact(utm_content);
+    utm_campaign = safeDecodeUtm(collapseUtf16Artifact(utm_campaign));
+    utm_content = safeDecodeUtm(collapseUtf16Artifact(utm_content));
     if (!utm_campaign && !utm_content) continue;
+    if (isTotalRow(utm_campaign, utm_content)) continue;
 
     const valorCol = findColumn(row, valueAliases);
     const valor = valorCol ? toNumber(row[valorCol]) : 0;
