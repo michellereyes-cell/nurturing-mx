@@ -66,7 +66,7 @@ export function getUnknownWords(
   }
 
   return {
-    unknownCanal: [...new Set(unknownCanal)].sort(),
-    unknownOrigen: [...new Set(unknownOrigen)].sort(),
+    unknownCanal: Array.from(new Set(unknownCanal)).sort(),
+    unknownOrigen: Array.from(new Set(unknownOrigen)).sort(),
   };
 }
