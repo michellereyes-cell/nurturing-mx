@@ -38,7 +38,7 @@ export function getUnknownWords(
   }
 
   const unknownCanal: string[] = [];
-  for (const text of combinedCanalSet) {
+  for (const text of Array.from(combinedCanalSet)) {
     if (!text.trim()) continue;
     const canalSinCustom = normalizarCanal(text);
     if (canalSinCustom !== "no-sabemos") continue;
@@ -54,7 +54,7 @@ export function getUnknownWords(
   }
 
   const unknownOrigen: string[] = [];
-  for (const campaign of campaignSet) {
+  for (const campaign of Array.from(campaignSet)) {
     const grupoSinCustom = campaignToFlujoGroup(campaign);
     if (grupoSinCustom !== "Otros") continue;
     const yaMapeado =
@@ -66,7 +66,7 @@ export function getUnknownWords(
   }
 
   return {
-    unknownCanal: [...new Set(unknownCanal)].sort(),
-    unknownOrigen: [...new Set(unknownOrigen)].sort(),
+    unknownCanal: Array.from(new Set(unknownCanal)).sort(),
+    unknownOrigen: Array.from(new Set(unknownOrigen)).sort(),
   };
 }
