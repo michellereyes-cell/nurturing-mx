@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { FileUpload } from "@/components/FileUpload";
 import { Filters } from "@/components/Filters";
 import { TableauTables } from "@/components/TableauTables";
 import { Charts } from "@/components/Charts";
 import { FullFunnelDashboard } from "@/components/FullFunnelDashboard";
+import { ComparacionMesAMes } from "@/components/ComparacionMesAMes";
 import {
   parseTrialsCSV,
   parseNewPaymentsCSV,
@@ -14,9 +15,11 @@ import {
 } from "@/lib/parseUploads";
 import { mergeData } from "@/lib/merge";
 import type { FilaUnificada, CanalNormalizado, EtapaFunnel } from "@/types";
+import type { CustomCanalMap } from "@/lib/icp";
+import { campaignToFlujoGroup, type CustomOrigenMap, type OrigenLabel } from "@/lib/flujoGroups";
 
 type UploadSlot = "trials" | "newPayments" | "hubspot";
-type TabId = "tablas" | "fullfunnel";
+type TabId = "tablas" | "fullfunnel" | "comparacion";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -24,6 +27,8 @@ function DashboardContent() {
   const [npText, setNpText] = useState("");
   const [hubspotText, setHubspotText] = useState("");
   const [activeTab, setActiveTab] = useState<TabId>("tablas");
+  const [customCanal, setCustomCanal] = useState<CustomCanalMap>({});
+  const [customOrigen, setCustomOrigen] = useState<CustomOrigenMap>({});
 
   const handleLoad = (slot: UploadSlot, text: string) => {
     if (slot === "trials") setTrialsText(text);
@@ -36,23 +41,35 @@ function DashboardContent() {
   const hubspotData = useMemo(() => (hubspotText ? parseHubSpotCSV(hubspotText) : []), [hubspotText]);
 
   const merged = useMemo(
-    () => mergeData(trialsData, npData, hubspotData),
-    [trialsData, npData, hubspotData]
+    () => mergeData(trialsData, npData, hubspotData, { customCanal }),
+    [trialsData, npData, hubspotData, customCanal]
   );
+
+  const onAddCanal = useCallback((palabra: string, canal: CanalNormalizado) => {
+    setCustomCanal((prev) => ({ ...prev, [palabra.trim()]: canal }));
+  }, []);
+  const onAddOrigen = useCallback((palabra: string, origen: OrigenLabel) => {
+    setCustomOrigen((prev) => ({ ...prev, [palabra.trim()]: origen }));
+  }, []);
 
   const canalParam = (searchParams.get("canal") ?? "") as CanalNormalizado | "";
   const etapaParam = (searchParams.get("etapa") ?? "") as EtapaFunnel | "";
+  const origenParam = (searchParams.get("origen") ?? "") as OrigenLabel | "";
 
   const filtered: FilaUnificada[] = useMemo(() => {
     let list = merged;
     if (canalParam && ["tienda-online", "redes-sociales", "marketplace", "tienda-fisica", "no-vendo", "no-sabemos", "venden"].includes(canalParam)) {
       list = list.filter((r) => r.canal === canalParam);
     }
-    if (etapaParam && ["tofu", "mofu", "bofu"].includes(etapaParam)) {
+    if (activeTab === "tablas" && origenParam) {
+      const opts = { customOrigen };
+      list = list.filter((r) => campaignToFlujoGroup(r.utm_campaign, opts) === origenParam);
+    }
+    if (activeTab === "fullfunnel" && etapaParam && ["tofu", "mofu", "bofu"].includes(etapaParam)) {
       list = list.filter((r) => r.etapa === etapaParam);
     }
     return list;
-  }, [merged, canalParam, etapaParam]);
+  }, [merged, canalParam, etapaParam, origenParam, activeTab, customOrigen]);
 
   const totals = useMemo(() => {
     return filtered.reduce(
@@ -95,9 +112,53 @@ function DashboardContent() {
         </p>
       )}
 
-      {hasData && (
+      <nav className="border-b border-gray-200" aria-label="Pestañas">
+        <div className="flex gap-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab("tablas")}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "tablas"
+                ? "border-nimbus-primary text-nimbus-primary"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Conversion Trials y NP
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("fullfunnel")}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "fullfunnel"
+                ? "border-nimbus-primary text-nimbus-primary"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Full funnel
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("comparacion")}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "comparacion"
+                ? "border-nimbus-primary text-nimbus-primary"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Comparación mes a mes
+          </button>
+        </div>
+      </nav>
+
+      {activeTab === "comparacion" && (
+        <div className="pt-4">
+          <ComparacionMesAMes customCanal={customCanal} customOrigen={customOrigen} />
+        </div>
+      )}
+
+      {activeTab !== "comparacion" && hasData && (
         <>
-          <Filters />
+          <Filters activeTab={activeTab} />
           <section className="bg-nimbus-surface rounded-lg border border-gray-200 p-4">
             <h2 className="text-lg font-semibold text-nimbus-text-high mb-2">
               Totales (filtrados)
@@ -115,54 +176,20 @@ function DashboardContent() {
                   {totals.new_payments}
                 </span>
               </div>
-              <div>
-                <span className="text-sm text-gray-600">Opens:</span>{" "}
-                <span className="font-semibold">{totals.opens}</span>
-              </div>
-              <div>
-                <span className="text-sm text-gray-600">Clicks:</span>{" "}
-                <span className="font-semibold">{totals.clicks}</span>
-              </div>
-              <div>
-                <span className="text-sm text-gray-600">Spam:</span>{" "}
-                <span className="font-semibold text-nimbus-danger">
-                  {totals.spam}
-                </span>
-              </div>
             </div>
           </section>
-
-          <nav className="border-b border-gray-200" aria-label="Pestañas">
-            <div className="flex gap-0">
-              <button
-                type="button"
-                onClick={() => setActiveTab("tablas")}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === "tablas"
-                    ? "border-nimbus-primary text-nimbus-primary"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                Tablas y gráficos
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("fullfunnel")}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === "fullfunnel"
-                    ? "border-nimbus-primary text-nimbus-primary"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                Full funnel
-              </button>
-            </div>
-          </nav>
 
           {activeTab === "tablas" && (
             <div className="pt-4 space-y-8">
               {(trialsData.length > 0 || npData.length > 0) && (
-                <TableauTables trialsData={trialsData} newPaymentsData={npData} />
+                <TableauTables
+                  trialsData={trialsData}
+                  newPaymentsData={npData}
+                  customCanal={customCanal}
+                  customOrigen={customOrigen}
+                  onAddCanal={onAddCanal}
+                  onAddOrigen={onAddOrigen}
+                />
               )}
               <Charts data={filtered} />
             </div>
@@ -170,10 +197,23 @@ function DashboardContent() {
 
           {activeTab === "fullfunnel" && (
             <div className="pt-4">
-              <FullFunnelDashboard data={filtered} hubspotRows={hubspotData} />
+              <FullFunnelDashboard
+                data={filtered}
+                hubspotRows={hubspotData}
+                trialsData={trialsData}
+                newPaymentsData={npData}
+                customCanal={customCanal}
+                customOrigen={customOrigen}
+              />
             </div>
           )}
         </>
+      )}
+
+      {activeTab !== "comparacion" && !hasData && (
+        <p className="pt-4 text-sm text-gray-500">
+          Sube al menos un CSV de Trials o New Payments (y opcionalmente HubSpot) para ver Conversion Trials y NP o Full funnel.
+        </p>
       )}
     </div>
   );

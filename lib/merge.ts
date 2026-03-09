@@ -1,4 +1,5 @@
 import type { FilaTableau, FilaHubSpot, FilaUnificada, CanalNormalizado, EtapaFunnel } from "@/types";
+import type { CustomCanalMap } from "./icp";
 import { normalizarCanal } from "./icp";
 
 /** Extrae etapa del funnel desde utm_content (tofu, mofu, bofu). Exportado para uso en dashboards. */
@@ -35,17 +36,23 @@ function key(campaign: string, canal: CanalNormalizado, etapa?: EtapaFunnel): st
 /**
  * Une los 3 orígenes: trials, new payments y HubSpot.
  * Agrega por (utm_campaign, canal normalizado, etapa opcional).
+ * El canal se obtiene de utm_content y utm_campaign (se buscan palabras clave en ambos).
  */
 export function mergeData(
   trials: FilaTableau[],
   newPayments: FilaTableau[],
-  hubspot: FilaHubSpot[]
+  hubspot: FilaHubSpot[],
+  options?: { customCanal?: CustomCanalMap }
 ): FilaUnificada[] {
   const map = new Map<string, FilaUnificada>();
+  const combinedForCanal = (content: string, campaign: string) =>
+    [(content || "").trim(), (campaign || "").trim()].filter(Boolean).join(" ");
 
   function addTableau(rows: FilaTableau[], field: "trials" | "new_payments") {
     for (const r of rows) {
-      const canal = normalizarCanal(r.utm_content);
+      const canal = normalizarCanal(combinedForCanal(r.utm_content, r.utm_campaign), {
+        customCanal: options?.customCanal,
+      });
       const etapa = extractEtapa(r.utm_content);
       const k = key(r.utm_campaign || r.utm_content, canal, etapa);
       let row = map.get(k);
@@ -71,7 +78,9 @@ export function mergeData(
 
   function addHubSpot(rows: FilaHubSpot[]) {
     for (const r of rows) {
-      const canal = normalizarCanal(r.utm_content);
+      const canal = normalizarCanal(combinedForCanal(r.utm_content, r.utm_campaign), {
+        customCanal: options?.customCanal,
+      });
       const etapa = extractEtapa(r.utm_content);
       const k = key(r.utm_campaign || r.utm_content, canal, etapa);
       let row = map.get(k);

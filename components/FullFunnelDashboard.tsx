@@ -14,9 +14,12 @@ import {
   LabelList,
   Cell,
 } from "recharts";
-import type { FilaUnificada, FilaHubSpot, CanalNormalizado, EtapaFunnel } from "@/types";
+import type { FilaUnificada, FilaHubSpot, FilaTableau, CanalNormalizado, EtapaFunnel } from "@/types";
 import { CANAL_LABELS, normalizarCanal } from "@/lib/icp";
+import type { CustomCanalMap } from "@/lib/icp";
+import type { CustomOrigenMap } from "@/lib/flujoGroups";
 import { extractEtapa } from "@/lib/merge";
+import { FlujosPorCanalEtapaTable } from "@/components/FlujosPorCanalEtapaTable";
 
 const CANALES_ORDER: CanalNormalizado[] = [
   "tienda-online",
@@ -41,13 +44,27 @@ const BAR_WORST = "#e74c3c";
 const BAR_DEFAULT_OPEN = "#3b82f6";
 const BAR_DEFAULT_CLICK = "#8b5cf6";
 
-interface FullFunnelDashboardProps {
-  data: FilaUnificada[];
-  /** Filas crudas de HubSpot (una por correo). Si se pasan, los gráficos open/click rate muestran todos los correos, no agrupados. */
-  hubspotRows?: FilaHubSpot[];
+function combinedForCanal(content: string, campaign: string): string {
+  return [(content || "").trim(), (campaign || "").trim()].filter(Boolean).join(" ");
 }
 
-export function FullFunnelDashboard({ data, hubspotRows = [] }: FullFunnelDashboardProps) {
+interface FullFunnelDashboardProps {
+  data: FilaUnificada[];
+  hubspotRows?: FilaHubSpot[];
+  trialsData?: FilaTableau[];
+  newPaymentsData?: FilaTableau[];
+  customCanal?: CustomCanalMap;
+  customOrigen?: CustomOrigenMap;
+}
+
+export function FullFunnelDashboard({
+  data,
+  hubspotRows = [],
+  trialsData = [],
+  newPaymentsData = [],
+  customCanal = {},
+  customOrigen = {},
+}: FullFunnelDashboardProps) {
   const [canal, setCanal] = useState<CanalNormalizado | "todos">("todos");
   const [etapa, setEtapa] = useState<EtapaFunnel | "todas">("todas");
 
@@ -62,13 +79,15 @@ export function FullFunnelDashboard({ data, hubspotRows = [] }: FullFunnelDashbo
   const filteredHubspotRows = useMemo(() => {
     if (hubspotRows.length === 0) return [];
     return hubspotRows.filter((r) => {
-      const rowCanal = normalizarCanal(r.utm_content);
+      const rowCanal = normalizarCanal(combinedForCanal(r.utm_content, r.utm_campaign), {
+        customCanal,
+      });
       const rowEtapa = extractEtapa(r.utm_content);
       if (canal !== "todos" && rowCanal !== canal) return false;
       if (etapa !== "todas" && rowEtapa !== etapa) return false;
       return true;
     });
-  }, [hubspotRows, canal, etapa]);
+  }, [hubspotRows, canal, etapa, customCanal]);
 
   /** Gráfico 1: por etapa (eje Y) → correos enviados (eje X). */
   const sendsByEtapa = useMemo(() => {
@@ -97,7 +116,7 @@ export function FullFunnelDashboard({ data, hubspotRows = [] }: FullFunnelDashbo
   /** Etiqueta para correo desde fila HubSpot cruda */
   const correoLabelHubSpot = (r: FilaHubSpot) =>
     r.nombre_correo?.trim() ||
-    [r.utm_campaign, CANAL_LABELS[normalizarCanal(r.utm_content)], extractEtapa(r.utm_content) ? ETAPA_LABELS[extractEtapa(r.utm_content)!] : ""].filter(Boolean).join(" · ");
+    [r.utm_campaign, CANAL_LABELS[normalizarCanal(combinedForCanal(r.utm_content, r.utm_campaign), { customCanal })], extractEtapa(r.utm_content) ? ETAPA_LABELS[extractEtapa(r.utm_content)!] : ""].filter(Boolean).join(" · ");
 
   /** Datos por correo: si hay hubspotRows usamos una fila por correo (todos los emails); si no, usamos merged filteredData. */
   const openRateByCorreo = useMemo(() => {
@@ -370,6 +389,12 @@ export function FullFunnelDashboard({ data, hubspotRows = [] }: FullFunnelDashbo
         </div>
       </section>
 
+      <FlujosPorCanalEtapaTable
+        trialsData={trialsData}
+        newPaymentsData={newPaymentsData}
+        customOrigen={customOrigen}
+      />
+
       {/* Gráfico 3: Open rate por correo (eje X = %, eje Y = correos). Open rate = aperturas / enviados * 100 */}
       <section>
         <h3 className="text-base font-medium text-nimbus-text-high mb-3">
@@ -479,6 +504,7 @@ export function FullFunnelDashboard({ data, hubspotRows = [] }: FullFunnelDashbo
           </ResponsiveContainer>
         </div>
       </section>
+
     </div>
   );
 }

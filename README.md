@@ -48,7 +48,7 @@ Las UTMs dinámicas en `utm_content` (y el nombre del correo en HubSpot) se norm
 6. **Venden (no segmentado)** – flujos que solo indican “venden” (consejos-venden, inactividad-venden, fidelizacion-venden, etc.).
 7. **No sabemos** – información faltante o que no matchea lo anterior.
 
-## Filtros en la URL
+## Filtros en la URL :D
 
 Puedes compartir o guardar vistas con filtros:
 
